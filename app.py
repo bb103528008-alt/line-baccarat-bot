@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 LINE_CHANNEL_ACCESS_TOKEN = "W9DMNdyysRVmJ4U/8YybbaYMNGU2kKpivuKtUA2BX/qByTD+vBDIOUtrBoV8Ryx7+Yaj8AIjqCUevB8D/LDNcF3OHYHqanIEUyw8AxQQrNPWOqHNYbZlAANWKnkSvHic8asFadMs8IcZbJArcPNvQAdB04t89/1O/w1cDnyilFU="
 LINE_CHANNEL_SECRET = "e4e27260b79a6c4942b559daed99c241"
-GROUP_ID = ""
+GROUP_ID = "Cbeda1170fc219e760eb34acb861408bd"
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
@@ -221,7 +221,7 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    print("GROUP_ID:", event.source.group_id)
+    
 
     
     text = event.message.text.strip()
