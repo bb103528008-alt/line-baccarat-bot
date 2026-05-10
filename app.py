@@ -221,6 +221,9 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    print("GROUP_ID:", event.source.group_id)
+
+    
     text = event.message.text.strip()
 
     if text == "/查詢":
