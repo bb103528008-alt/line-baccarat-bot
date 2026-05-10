@@ -192,7 +192,31 @@ def handle_message(event):
             TextSendMessage(text="\n".join(result))
         )
         return
+    if text.startswith("/刪除"):
+        try:
+            name = text.split(" ")[1]
 
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+
+            c.execute("DELETE FROM scores WHERE name=?", (name,))
+            c.execute("DELETE FROM history WHERE name=?", (name,))
+
+            conn.commit()
+            conn.close()
+
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"已刪除 {name} 的所有資料")
+            )
+
+        except:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="格式錯誤：/刪除 名字")
+            )
+
+        return
     if text.startswith("/銀行"):
         try:
             amount = int(text.split(" ")[1])
