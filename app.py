@@ -78,6 +78,9 @@ def init_db():
     c.close()
     conn.close()
 
+    init_db()
+    print("DB INIT SUCCESS")
+
 
 # =========================
 # 更新分數
@@ -571,5 +574,4 @@ def handle_message(event):
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(host="0.0.0.0", port=5000)
