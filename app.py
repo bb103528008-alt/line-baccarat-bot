@@ -49,6 +49,7 @@ def init_db():
     conn = get_conn()
     c = conn.cursor()
 
+    print("DB INIT SUCCESS")
     c.execute('''
         CREATE TABLE IF NOT EXISTS scores (
             name TEXT PRIMARY KEY,
