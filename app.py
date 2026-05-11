@@ -415,38 +415,66 @@ def handle_message(event):
                 TextSendMessage(text=f"🏦 結帳成功\n{name}\n💸 -{amount}")
             )
 
-        except:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="格式錯誤：/結帳 名字 金額")
-            )
+            except:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="格式錯誤：/結帳 名字 金額")
+                )
 
-        return
+            return
 
-    # 刪除
+     # 刪除
     if text.startswith("/刪除"):
         try:
-            name = text.split(" ")[1]
+            parts = text.split(" ", 1)
+
+            if len(parts) < 2:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="格式錯誤：/刪除 名字")
+                )
+                return
+
+            name = parts[1].strip()
 
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
 
-            c.execute("DELETE FROM scores WHERE name=?", (name,))
-            c.execute("DELETE FROM daily_scores WHERE name=?", (name,))
-            c.execute("DELETE FROM history WHERE name=?", (name,))
-
-            conn.commit()
-            conn.close()
-
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"已刪除 {name} 的所有資料")
+            c.execute(
+                "DELETE FROM scores WHERE name=?",
+                (name,)
             )
 
-        except:
+            c.execute(
+                "DELETE FROM daily_scores WHERE name=?",
+                (name,)
+            )
+
+            c.execute(
+                "DELETE FROM history WHERE name=?",
+                (name,)
+            )
+
+            conn.commit()
+
+            deleted = c.rowcount
+
+            conn.close()
+
+            if deleted > 0:
+                msg = f"✅ 已刪除 {name}"
+            else:
+                msg = f"⚠️ 找不到 {name}"
+
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="格式錯誤：/刪除 名字")
+                TextSendMessage(text=msg)
+            )
+
+        except Exception as e:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"刪除失敗\\n{str(e)}")
             )
 
         return
