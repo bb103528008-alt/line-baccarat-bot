@@ -402,7 +402,7 @@ def handle_message(event):
                 (row[0] - amount, name)
             )
 
-           conn.commit()
+            conn.commit()
             c.close()
             conn.close()
 
