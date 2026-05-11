@@ -415,13 +415,13 @@ def handle_message(event):
                 TextSendMessage(text=f"🏦 結帳成功\n{name}\n💸 -{amount}")
             )
 
-            except:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text="格式錯誤：/結帳 名字 金額")
-                )
+        except:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="格式錯誤：/結帳 名字 金額")
+            )
 
-            return
+        return
 
      # 刪除
     if text.startswith("/刪除"):
