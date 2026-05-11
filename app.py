@@ -25,28 +25,38 @@ RATE = 300
 
 
 # =========================
+# DB
+# =========================
+
+def get_conn():
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
+# =========================
 # 初始化資料庫
 # =========================
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_conn()
     c = conn.cursor()
 
-    c.execute("""
+    c.execute('''
         CREATE TABLE IF NOT EXISTS scores (
             name TEXT PRIMARY KEY,
             score INTEGER DEFAULT 0
         )
-    """)
+    ''')
 
-    c.execute("""
+    c.execute('''
         CREATE TABLE IF NOT EXISTS daily_scores (
             name TEXT PRIMARY KEY,
             score INTEGER DEFAULT 0
         )
-    """)
+    ''')
 
-    c.execute("""
+    c.execute('''
         CREATE TABLE IF NOT EXISTS history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -54,7 +64,7 @@ def init_db():
             final_amount INTEGER,
             created_at TEXT
         )
-    """)
+    ''')
 
     conn.commit()
     conn.close()
@@ -67,17 +77,23 @@ def init_db():
 def update_score(name, amount):
     final_amount = amount * RATE
 
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_conn()
     c = conn.cursor()
 
     # 總排行
-    c.execute("SELECT score FROM scores WHERE name=?", (name,))
+    c.execute(
+        "SELECT score FROM scores WHERE name=?",
+        (name,)
+    )
+
     row = c.fetchone()
 
     if row:
+        new_score = row[0] + final_amount
+
         c.execute(
             "UPDATE scores SET score=? WHERE name=?",
-            (row[0] + final_amount, name)
+            (new_score, name)
         )
     else:
         c.execute(
@@ -86,13 +102,19 @@ def update_score(name, amount):
         )
 
     # 今日排行
-    c.execute("SELECT score FROM daily_scores WHERE name=?", (name,))
+    c.execute(
+        "SELECT score FROM daily_scores WHERE name=?",
+        (name,)
+    )
+
     daily_row = c.fetchone()
 
     if daily_row:
+        daily_score = daily_row[0] + final_amount
+
         c.execute(
             "UPDATE daily_scores SET score=? WHERE name=?",
-            (daily_row[0] + final_amount, name)
+            (daily_score, name)
         )
     else:
         c.execute(
@@ -100,7 +122,7 @@ def update_score(name, amount):
             (name, final_amount)
         )
 
-    # 歷史
+    # 歷史紀錄
     c.execute(
         "INSERT INTO history (name, amount, final_amount, created_at) VALUES (?, ?, ?, ?)",
         (
@@ -120,10 +142,13 @@ def update_score(name, amount):
 # =========================
 
 def get_scores():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_conn()
     c = conn.cursor()
 
-    c.execute("SELECT name, score FROM scores ORDER BY score DESC")
+    c.execute(
+        "SELECT name, score FROM scores ORDER BY score DESC"
+    )
+
     rows = c.fetchall()
 
     conn.close()
@@ -145,7 +170,7 @@ def get_scores():
 # =========================
 
 def get_history():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_conn()
     c = conn.cursor()
 
     c.execute(
@@ -171,6 +196,10 @@ def get_history():
     return "\n".join(result)
 
 
+# =========================
+# CALLBACK
+# =========================
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -185,8 +214,13 @@ def callback():
     return 'OK'
 
 
+# =========================
+# MESSAGE
+# =========================
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+
     text = event.message.text.strip()
 
     # 查詢
@@ -207,17 +241,21 @@ def handle_message(event):
 
     # 今日排行
     if text == "/今日排行":
-        conn = sqlite3.connect(DB_NAME)
+
+        conn = get_conn()
         c = conn.cursor()
 
-        c.execute("SELECT name, score FROM daily_scores ORDER BY score DESC")
-        rows = c.fetchall()
+        c.execute(
+            "SELECT name, score FROM daily_scores ORDER BY score DESC"
+        )
 
+        rows = c.fetchall()
         conn.close()
 
-        result = ["📊｜今日排行", "━━━━━━━━━━"]
+        result = ["📊 今日排行", "━━━━━━━━━━"]
 
         for i, (name, score) in enumerate(rows, start=1):
+
             sign = "+" if score >= 0 else ""
 
             if i == 1:
@@ -229,9 +267,9 @@ def handle_message(event):
             else:
                 medal = f"{i}."
 
-            result.append(f"{medal} {name}\n💰 {sign}{score}\n")
-
-        result.append("━━━━━━━━━━")
+            result.append(
+                f"{medal} {name}\n💰 {sign}{score}\n"
+            )
 
         line_bot_api.reply_message(
             event.reply_token,
@@ -242,17 +280,21 @@ def handle_message(event):
 
     # 總排行
     if text == "/總排行":
-        conn = sqlite3.connect(DB_NAME)
+
+        conn = get_conn()
         c = conn.cursor()
 
-        c.execute("SELECT name, score FROM scores ORDER BY score DESC")
-        rows = c.fetchall()
+        c.execute(
+            "SELECT name, score FROM scores ORDER BY score DESC"
+        )
 
+        rows = c.fetchall()
         conn.close()
 
-        result = ["👑｜總排行（累計）", "━━━━━━━━━━"]
+        result = ["👑 總排行", "━━━━━━━━━━"]
 
         for i, (name, score) in enumerate(rows, start=1):
+
             sign = "+" if score >= 0 else ""
 
             if i == 1:
@@ -264,9 +306,9 @@ def handle_message(event):
             else:
                 medal = f"{i}."
 
-            result.append(f"{medal} {name}\n💰 {sign}{score}\n")
-
-        result.append("━━━━━━━━━━")
+            result.append(
+                f"{medal} {name}\n💰 {sign}{score}\n"
+            )
 
         line_bot_api.reply_message(
             event.reply_token,
@@ -277,13 +319,17 @@ def handle_message(event):
 
     # 銀行
     if text.startswith("/銀行"):
+
         try:
             amount = int(text.split(" ")[1])
 
-            conn = sqlite3.connect(DB_NAME)
+            conn = get_conn()
             c = conn.cursor()
 
-            c.execute("SELECT score FROM scores WHERE name='銀行'")
+            c.execute(
+                "SELECT score FROM scores WHERE name='銀行'"
+            )
+
             row = c.fetchone()
 
             if row:
@@ -307,71 +353,24 @@ def handle_message(event):
                 TextSendMessage(text=f"🏦 銀行更新\n💰 {sign}{amount}")
             )
 
-        except:
+        except Exception as e:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="格式錯誤：/銀行 5000")
+                TextSendMessage(text=f"銀行失敗\n{str(e)}")
             )
 
         return
 
     # 提領
     if text.startswith("/提領"):
+
         try:
             parts = text.split(" ")
 
             name = parts[1]
             amount = int(parts[2])
 
-            conn = sqlite3.connect(DB_NAME)
-            c = conn.cursor()
-
-            c.execute(
-                "SELECT score FROM scores WHERE name=?",
-                (name,)
-            )
-
-            row = c.fetchone()
-
-            if not row:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text="找不到玩家")
-                )
-                return
-
-            new_score = row[0] - amount
-
-            c.execute(
-                "UPDATE scores SET score=? WHERE name=?",
-                (new_score, name)
-            )
-
-            conn.commit()
-            conn.close()
-
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"💸 提領成功\n{name}\n-{amount}")
-            )
-
-        except:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="格式錯誤：/提領 名字 金額")
-            )
-
-        return
-
-    # 結帳
-    if text.startswith("/結帳"):
-        try:
-            parts = text.split(" ")
-
-            name = parts[1]
-            amount = int(parts[2])
-
-            conn = sqlite3.connect(DB_NAME)
+            conn = get_conn()
             c = conn.cursor()
 
             c.execute(
@@ -393,7 +392,58 @@ def handle_message(event):
                 (row[0] - amount, name)
             )
 
-            c.execute("SELECT score FROM scores WHERE name='銀行'")
+            conn.commit()
+            conn.close()
+
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"💸 提領成功\n{name}\n-{amount}")
+            )
+
+        except Exception as e:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"提領失敗\n{str(e)}")
+            )
+
+        return
+
+    # 結帳
+    if text.startswith("/結帳"):
+
+        try:
+            parts = text.split(" ")
+
+            name = parts[1]
+            amount = int(parts[2])
+
+            conn = get_conn()
+            c = conn.cursor()
+
+            c.execute(
+                "SELECT score FROM scores WHERE name=?",
+                (name,)
+            )
+
+            row = c.fetchone()
+
+            if not row:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="找不到玩家")
+                )
+                return
+
+            c.execute(
+                "UPDATE scores SET score=? WHERE name=?",
+                (row[0] - amount, name)
+            )
+
+            # 銀行增加
+            c.execute(
+                "SELECT score FROM scores WHERE name='銀行'"
+            )
+
             bank_row = c.fetchone()
 
             if bank_row:
@@ -415,16 +465,17 @@ def handle_message(event):
                 TextSendMessage(text=f"🏦 結帳成功\n{name}\n💸 -{amount}")
             )
 
-        except:
+        except Exception as e:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="格式錯誤：/結帳 名字 金額")
+                TextSendMessage(text=f"結帳失敗\n{str(e)}")
             )
 
         return
 
-     # 刪除
+    # 刪除
     if text.startswith("/刪除"):
+
         try:
             parts = text.split(" ", 1)
 
@@ -437,7 +488,7 @@ def handle_message(event):
 
             name = parts[1].strip()
 
-            conn = sqlite3.connect(DB_NAME)
+            conn = get_conn()
             c = conn.cursor()
 
             c.execute(
@@ -456,25 +507,17 @@ def handle_message(event):
             )
 
             conn.commit()
-
-            deleted = c.rowcount
-
             conn.close()
-
-            if deleted > 0:
-                msg = f"✅ 已刪除 {name}"
-            else:
-                msg = f"⚠️ 找不到 {name}"
 
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text=msg)
+                TextSendMessage(text=f"✅ 已刪除 {name}")
             )
 
         except Exception as e:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text=f"刪除失敗\\n{str(e)}")
+                TextSendMessage(text=f"刪除失敗\n{str(e)}")
             )
 
         return
@@ -485,9 +528,14 @@ def handle_message(event):
     results = []
 
     for line in lines:
-        match = re.match(r"([+-]?\d+)\s+(.+)", line.strip())
+
+        match = re.match(
+            r"([+-]?\d+)\s+(.+)",
+            line.strip()
+        )
 
         if match:
+
             amount = int(match.group(1))
             name = match.group(2)
 
