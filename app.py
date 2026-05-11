@@ -29,8 +29,15 @@ RATE = 300
 # =========================
 
 def get_conn():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn = sqlite3.connect(
+        DB_NAME,
+        check_same_thread=False,
+        timeout=30
+    )
+
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+
     return conn
 
 
@@ -67,6 +74,7 @@ def init_db():
     ''')
 
     conn.commit()
+    c.close()
     conn.close()
 
 
@@ -134,6 +142,7 @@ def update_score(name, amount):
     )
 
     conn.commit()
+    c.close()
     conn.close()
 
 
@@ -344,6 +353,7 @@ def handle_message(event):
                 )
 
             conn.commit()
+            c.close()
             conn.close()
 
             sign = "+" if amount >= 0 else ""
@@ -392,7 +402,8 @@ def handle_message(event):
                 (row[0] - amount, name)
             )
 
-            conn.commit()
+           conn.commit()
+            c.close()
             conn.close()
 
             line_bot_api.reply_message(
@@ -458,6 +469,7 @@ def handle_message(event):
                 )
 
             conn.commit()
+            c.close()
             conn.close()
 
             line_bot_api.reply_message(
@@ -507,6 +519,7 @@ def handle_message(event):
             )
 
             conn.commit()
+            c.close()
             conn.close()
 
             line_bot_api.reply_message(
