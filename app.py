@@ -2,12 +2,16 @@ from flask import Flask, request
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+
 import sqlite3
 import re
 from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
+
+# =========================
+# LINE TOKEN
+# =========================
 
 LINE_CHANNEL_ACCESS_TOKEN = "W9DMNdyysRVmJ4U/8YybbaYMNGU2kKpivuKtUA2BX/qByTD+vBDIOUtrBoV8Ryx7+Yaj8AIjqCUevB8D/LDNcF3OHYHqanIEUyw8AxQQrNPWOqHNYbZlAANWKnkSvHic8asFadMs8IcZbJArcPNvQAdB04t89/1O/w1cDnyilFU="
 LINE_CHANNEL_SECRET = "e4e27260b79a6c4942b559daed99c241"
@@ -18,6 +22,11 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 DB_NAME = "game.db"
 RATE = 300
+
+
+# =========================
+# 初始化資料庫
+# =========================
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -50,12 +59,18 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+# =========================
+# 更新分數
+# =========================
+
 def update_score(name, amount):
     final_amount = amount * RATE
 
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
 
+    # 總排行
     c.execute("SELECT score FROM scores WHERE name=?", (name,))
     row = c.fetchone()
 
@@ -70,6 +85,7 @@ def update_score(name, amount):
             (name, final_amount)
         )
 
+    # 今日排行
     c.execute("SELECT score FROM daily_scores WHERE name=?", (name,))
     daily_row = c.fetchone()
 
@@ -84,6 +100,7 @@ def update_score(name, amount):
             (name, final_amount)
         )
 
+    # 歷史
     c.execute(
         "INSERT INTO history (name, amount, final_amount, created_at) VALUES (?, ?, ?, ?)",
         (
@@ -96,6 +113,11 @@ def update_score(name, amount):
 
     conn.commit()
     conn.close()
+
+
+# =========================
+# 查詢
+# =========================
 
 def get_scores():
     conn = sqlite3.connect(DB_NAME)
@@ -117,69 +139,10 @@ def get_scores():
 
     return "\n".join(result)
 
-def get_daily_scores():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
 
-    c.execute("SELECT name, score FROM daily_scores ORDER BY score DESC")
-    rows = c.fetchall()
-
-    conn.close()
-
-    if not rows:
-        return "目前沒有資料"
-
-    result = ["📊｜今日排行", "━━━━━━━━━━"]
-
-    for i, (name, score) in enumerate(rows, start=1):
-        sign = "+" if score >= 0 else ""
-
-        if i == 1:
-            medal = "🥇"
-        elif i == 2:
-            medal = "🥈"
-        elif i == 3:
-            medal = "🥉"
-        else:
-            medal = f"{i}."
-
-        result.append(f"{medal} {name}\n💰 {sign}{score}\n")
-
-    result.append("━━━━━━━━━━")
-
-    return "\n".join(result)
-
-def get_total_ranking():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-
-    c.execute("SELECT name, score FROM scores ORDER BY score DESC")
-    rows = c.fetchall()
-
-    conn.close()
-
-    if not rows:
-        return "目前沒有資料"
-
-    result = ["👑｜總排行（累計）", "━━━━━━━━━━"]
-
-    for i, (name, score) in enumerate(rows, start=1):
-        sign = "+" if score >= 0 else ""
-
-        if i == 1:
-            medal = "🥇"
-        elif i == 2:
-            medal = "🥈"
-        elif i == 3:
-            medal = "🥉"
-        else:
-            medal = f"{i}."
-
-        result.append(f"{medal} {name}\n💰 {sign}{score}\n")
-
-    result.append("━━━━━━━━━━")
-
-    return "\n".join(result)
+# =========================
+# 歷史
+# =========================
 
 def get_history():
     conn = sqlite3.connect(DB_NAME)
@@ -207,6 +170,7 @@ def get_history():
 
     return "\n".join(result)
 
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -214,18 +178,18 @@ def callback():
 
     try:
         handler.handle(body, signature)
+
     except InvalidSignatureError:
         return 'Invalid signature', 400
 
     return 'OK'
 
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    
-
-    
     text = event.message.text.strip()
 
+    # 查詢
     if text == "/查詢":
         line_bot_api.reply_message(
             event.reply_token,
@@ -233,6 +197,7 @@ def handle_message(event):
         )
         return
 
+    # 歷史
     if text == "/歷史":
         line_bot_api.reply_message(
             event.reply_token,
@@ -240,20 +205,225 @@ def handle_message(event):
         )
         return
 
+    # 今日排行
     if text == "/今日排行":
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+
+        c.execute("SELECT name, score FROM daily_scores ORDER BY score DESC")
+        rows = c.fetchall()
+
+        conn.close()
+
+        result = ["📊｜今日排行", "━━━━━━━━━━"]
+
+        for i, (name, score) in enumerate(rows, start=1):
+            sign = "+" if score >= 0 else ""
+
+            if i == 1:
+                medal = "🥇"
+            elif i == 2:
+                medal = "🥈"
+            elif i == 3:
+                medal = "🥉"
+            else:
+                medal = f"{i}."
+
+            result.append(f"{medal} {name}\n💰 {sign}{score}\n")
+
+        result.append("━━━━━━━━━━")
+
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text=get_daily_scores())
+            TextSendMessage(text="\n".join(result))
         )
+
         return
 
+    # 總排行
     if text == "/總排行":
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+
+        c.execute("SELECT name, score FROM scores ORDER BY score DESC")
+        rows = c.fetchall()
+
+        conn.close()
+
+        result = ["👑｜總排行（累計）", "━━━━━━━━━━"]
+
+        for i, (name, score) in enumerate(rows, start=1):
+            sign = "+" if score >= 0 else ""
+
+            if i == 1:
+                medal = "🥇"
+            elif i == 2:
+                medal = "🥈"
+            elif i == 3:
+                medal = "🥉"
+            else:
+                medal = f"{i}."
+
+            result.append(f"{medal} {name}\n💰 {sign}{score}\n")
+
+        result.append("━━━━━━━━━━")
+
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text=get_total_ranking())
+            TextSendMessage(text="\n".join(result))
         )
+
         return
 
+    # 銀行
+    if text.startswith("/銀行"):
+        try:
+            amount = int(text.split(" ")[1])
+
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+
+            c.execute("SELECT score FROM scores WHERE name='銀行'")
+            row = c.fetchone()
+
+            if row:
+                c.execute(
+                    "UPDATE scores SET score=? WHERE name='銀行'",
+                    (row[0] + amount,)
+                )
+            else:
+                c.execute(
+                    "INSERT INTO scores (name, score) VALUES (?, ?)",
+                    ("銀行", amount)
+                )
+
+            conn.commit()
+            conn.close()
+
+            sign = "+" if amount >= 0 else ""
+
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"🏦 銀行更新\n💰 {sign}{amount}")
+            )
+
+        except:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="格式錯誤：/銀行 5000")
+            )
+
+        return
+
+    # 提領
+    if text.startswith("/提領"):
+        try:
+            parts = text.split(" ")
+
+            name = parts[1]
+            amount = int(parts[2])
+
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+
+            c.execute(
+                "SELECT score FROM scores WHERE name=?",
+                (name,)
+            )
+
+            row = c.fetchone()
+
+            if not row:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="找不到玩家")
+                )
+                return
+
+            new_score = row[0] - amount
+
+            c.execute(
+                "UPDATE scores SET score=? WHERE name=?",
+                (new_score, name)
+            )
+
+            conn.commit()
+            conn.close()
+
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"💸 提領成功\n{name}\n-{amount}")
+            )
+
+        except:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="格式錯誤：/提領 名字 金額")
+            )
+
+        return
+
+    # 結帳
+    if text.startswith("/結帳"):
+        try:
+            parts = text.split(" ")
+
+            name = parts[1]
+            amount = int(parts[2])
+
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+
+            c.execute(
+                "SELECT score FROM scores WHERE name=?",
+                (name,)
+            )
+
+            row = c.fetchone()
+
+            if not row:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="找不到玩家")
+                )
+                return
+
+            c.execute(
+                "UPDATE scores SET score=? WHERE name=?",
+                (row[0] - amount, name)
+            )
+
+            c.execute("SELECT score FROM scores WHERE name='銀行'")
+            bank_row = c.fetchone()
+
+            if bank_row:
+                c.execute(
+                    "UPDATE scores SET score=? WHERE name='銀行'",
+                    (bank_row[0] + amount,)
+                )
+            else:
+                c.execute(
+                    "INSERT INTO scores (name, score) VALUES (?, ?)",
+                    ("銀行", amount)
+                )
+
+            conn.commit()
+            conn.close()
+
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"🏦 結帳成功\n{name}\n💸 -{amount}")
+            )
+
+        except:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="格式錯誤：/結帳 名字 金額")
+            )
+
+        return
+
+    # 刪除
     if text.startswith("/刪除"):
         try:
             name = text.split(" ")[1]
@@ -281,7 +451,9 @@ def handle_message(event):
 
         return
 
+    # 記帳
     lines = text.split("\n")
+
     results = []
 
     for line in lines:
@@ -294,9 +466,12 @@ def handle_message(event):
             update_score(name, amount)
 
             final_amount = amount * RATE
+
             sign = "+" if final_amount >= 0 else ""
 
-            results.append(f"{name}\n💰 {sign}{final_amount}")
+            results.append(
+                f"{name}\n💰 {sign}{final_amount}"
+            )
 
     if results:
         line_bot_api.reply_message(
@@ -304,49 +479,7 @@ def handle_message(event):
             TextSendMessage(text="\n\n".join(results))
         )
 
-def auto_daily_report():
-    if GROUP_ID == "你的群組ID":
-        return
-
-    message = get_daily_scores() + "\n\n" + get_total_ranking()
-
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-
-    current_day = datetime.now().day
-
-    if current_day == 1:
-        c.execute(
-            "SELECT name, score FROM scores ORDER BY score ASC LIMIT 1"
-        )
-
-        loser = c.fetchone()
-
-        if loser:
-            message += f"\n\n💀｜本月最輸玩家\n━━━━━━━━━━\n😭 {loser[0]}\n💸 {loser[1]}"
-
-    line_bot_api.push_message(
-        GROUP_ID,
-        TextSendMessage(text=message)
-    )
-
-    c.execute("DELETE FROM daily_scores")
-
-    conn.commit()
-    conn.close()
-
-scheduler = BackgroundScheduler()
-
-scheduler.add_job(
-    auto_daily_report,
-    'cron',
-    hour=0,
-    minute=0
-)
-
-scheduler.start()
-
-init_db()
 
 if __name__ == "__main__":
+    init_db()
     app.run(host="0.0.0.0", port=5000)
